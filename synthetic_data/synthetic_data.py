@@ -89,9 +89,6 @@ class TestStringMethods(unittest.TestCase):
                 -(k/smoothness) * abs(math.sin(x/k) + buffer) + x,
                 (k/smoothness) * abs(math.sin(x/k) + buffer) + x
             )
-    
-        
-
 
     def test_listcheck_01(self):
         l1 = [0.5, 0.2, 0.1, 0.05, 0.05, 0.02, 0.02, 0.02, 0.02, 0.02]
