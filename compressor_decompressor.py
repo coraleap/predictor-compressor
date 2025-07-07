@@ -2,6 +2,7 @@
 import numpy as np
 import unittest
 import synthetic_data as synth
+import math
 
 """
  ---------- HELPERS ----------
@@ -153,6 +154,9 @@ def find_longest_match(msg: str, prefixes: list[str], msg_offset: int = 0) -> tu
         matching_prefix_length(msg, prefix, msg_offset) for prefix in prefixes
     ]
 
+    if len(match_lengths) == 0:
+        raise AssertionError('This shouldn\'t be able to happen.')
+
     max_match = max(match_lengths)
 
     all_occurances = [
@@ -165,7 +169,7 @@ def find_longest_match(msg: str, prefixes: list[str], msg_offset: int = 0) -> tu
         raise RuntimeError('Prefix can\'t be uniquely decoded!')
     
     prefix_ind = all_occurances[0]
-    return ((prefix_ind, prefixes[prefix_ind]), len(prefixes[prefix_ind]))
+    return ((prefix_ind, prefixes[prefix_ind]), max_match)
     
 def expand_bucket_range(error_range_func: any, rng: tuple[float, float], iterations: int = 1):
     if iterations == 0:
@@ -201,9 +205,9 @@ def compress_single_token(
     other_strings = [ref_table[i] for i in range(len(pmf)) 
                      if check_range(pmf[i], expanded_bucket) == 0 and i != token
                      ]
-    
+        
     minimum_prefixfree_length = max(
-        matching_prefix_length(token_string, s) for s in other_strings
+        [matching_prefix_length(token_string, s) for s in other_strings], default=0
     ) + 1
 
     if minimum_prefixfree_length + 1 >= max_longform:
@@ -268,7 +272,7 @@ def create_package(pmf_generator_1: any, longform_strings: list[str] | dict[int,
     if isinstance(buckets[0], int):
         buckets = zip(buckets_cutoffs, buckets_cutoffs[1:])
     
-    if isinstance(pmf_generator_2, None):
+    if pmf_generator_2 is None:
         pmf_generator_2 = pmf_generator_1
 
     F = error_range
@@ -278,13 +282,13 @@ def create_package(pmf_generator_1: any, longform_strings: list[str] | dict[int,
         tokens = tokenizer(inp)
 
         prev_tokens = []
-        for (ind, tok) in inp:
+        for tok in tokens:
             pmf = pmf_generator_1(prev_tokens)
             all_compressions.append(
                 compress_single_token(
                     token=tok, pmf=pmf, ref_table=ref_table, buckets=buckets,
                     error_range=error_range, bucket_prefixes=bucket_prefixes,
-                    max_longform=max_longform
+                    max_longform=max_longform, base=base
                 )
             )
             prev_tokens.append(tok)
@@ -295,16 +299,16 @@ def create_package(pmf_generator_1: any, longform_strings: list[str] | dict[int,
     def decompressor(inp: str) -> list[int]:
         msg_offset = 0
         tokens = []
-        output = ''
         while msg_offset < len(inp):
             pmf = pmf_generator_2(tokens)
+            
             (tok, msg_offset) = decompress_single_token(
                     msg=inp, pmf=pmf, ref_table=ref_table, buckets=buckets,
                     error_range=error_range, bucket_prefixes=bucket_prefixes, 
-                    max_longform=max_longform, msg_offset=msg_offset
+                    max_longform=max_longform, msg_offset=msg_offset, base=base
                     )
             tokens.append(tok)
-            output += detokenizer(tok)
+        return detokenizer(tokens)
     return (compressor, decompressor)
 
 
@@ -406,7 +410,7 @@ class TestStringMethods(unittest.TestCase):
         exp = 0.5
         q = 0.99
         iterations = 100
-        num_tokens = 10
+        num_tokens = 100
         error_func_1 = lambda x: (x*q, x/q)
         power_law_distr_1 = lambda n: (n + 1) ** (exp)
         data1, data2 = synth.generate_synthetic_data(
@@ -434,6 +438,121 @@ class TestStringMethods(unittest.TestCase):
                 bucket_prefixes, 7, 2, 0
                 )
             self.assertEqual(chosen_token, decompression)
+
+    def test_package_01(self):
+        exp = 1.5
+        q = 0.99
+        trials = 10
+        trial_length = 500
+        num_tokens = 1000
+
+        string_lengths = 10
+        error_func_1 = lambda x: (x*q, x/q)
+        power_law_distr_1 = lambda n: (n + 1) ** (-exp)
+        data1, data2 = synth.generate_synthetic_data(
+            num_tokens, trials * trial_length, power_law_distr_1, error_func_1
+            , 0.1)
+        data1 = data1.reshape(trials, trial_length, num_tokens)
+        data2 = data2.reshape(trials, trial_length, num_tokens)
+
+        random_prime: int = 97
+        
+        tbl = [f"{((i * random_prime) % (2 ** string_lengths)):{string_lengths}b}".replace(' ', '0')[::-1] for i in range(num_tokens)]
+
+
+        norm_constant = 1/sum(power_law_distr_1(i) for i in range(num_tokens))
+
+        print(norm_constant)
+
+        entropy = sum(norm_constant * power_law_distr_1(i) * 
+                      math.log2(1 / (power_law_distr_1(i) * norm_constant)) for i in range(num_tokens)
+                      )
+
+        print(f'Entropy: {entropy}')
+
+        buckets = []
+        bucket_prefixes = [
+            '1' * i + '0' for i in range(7)
+        ]
+        bucket_prefixes[-1] = bucket_prefixes[-1][:-1]
+
+        decay_constant = 1/5
+        buckets.append(1)
+        for i in range(0, len(bucket_prefixes) - 1):
+            buckets.append(
+                norm_constant * decay_constant ** (i + 0.5)
+                )
+        buckets.append(0)
+        
+        buckets = list(zip(buckets, buckets[1:]))
+        
+        print(buckets)
+
+        estimated_frequency = [0 for _ in range(len(buckets))]
+        estimated_probability = [0 for _ in range(len(buckets))]
+        for n in range(num_tokens):
+            bucket_num = identify_bucket(power_law_distr_1(n) * norm_constant, buckets=buckets)[0]
+            estimated_frequency[bucket_num] += 1
+            estimated_probability[bucket_num] += power_law_distr_1(n) * norm_constant
+        print(estimated_frequency)
+        print(estimated_probability)
+
+
+        def tokenizer(inpstr: str) -> list[int]:
+            output: list[int] = [
+                int(float(word)) for word in inpstr.split(' ')
+            ]
+            return output
+        
+        def detokenizer(inp: list[int]) -> str:
+            return " ".join(
+                [
+                    str(a) for a in inp
+                ]
+            )
+        
+        chosen_tokens = np.zeros((trials, trial_length))
+        
+        
+        for ind, _ in np.ndenumerate(chosen_tokens):
+            pmf = data1[ind]
+            chosen_tokens[ind] = np.random.choice(np.arange(num_tokens), p=pmf)
+
+        current_trial = 0
+            
+        def pmf_generator_1(tokens: list[int]) -> np.ndarray:
+            return data1[current_trial, len(tokens)]
+        
+        def pmf_generator_2(tokens: list[int]) -> np.ndarray:
+            return data2[current_trial, len(tokens)]
+        
+        compressor, decompressor = create_package(
+            pmf_generator_1=pmf_generator_1, longform_strings=tbl, 
+            buckets_cutoffs=buckets, error_range=error_func_1,
+            bucket_prefixes=bucket_prefixes, max_longform=string_lengths, tokenizer=tokenizer,
+            detokenizer=detokenizer, base=2, pmf_generator_2=pmf_generator_2)
+        
+        total_length = 0
+
+        for trial in range(trials):
+            current_trial = trial
+            inp = detokenizer([int(a) for a in
+                chosen_tokens[trial]
+                ])
+            # print(f'Input string: {inp}')
+            compression = compressor(inp)
+            # print(f'Compression: {compression}')
+            total_length += len(compression)
+            print(f'Compression Length: {len(compression)}')
+            output = decompressor(compression)
+            # print(f'Output string: {output}')
+            self.assertEqual(inp, output)
+
+        print(f'Performance (in bits): {total_length / (trial_length * trials)}')
+
+        
+
+
 
 
     
