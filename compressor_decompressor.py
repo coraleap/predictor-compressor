@@ -441,12 +441,12 @@ class TestStringMethods(unittest.TestCase):
 
     def test_package_01(self):
         exp = 1.5
-        q = 0.99
-        trials = 10
-        trial_length = 500
-        num_tokens = 1000
+        q = 0.01
+        trials = 50
+        trial_length = 10
+        num_tokens = 128256
 
-        string_lengths = 10
+        string_lengths = 17
         error_func_1 = lambda x: (x*q, x/q)
         power_law_distr_1 = lambda n: (n + 1) ** (-exp)
         data1, data2 = synth.generate_synthetic_data(
@@ -472,11 +472,11 @@ class TestStringMethods(unittest.TestCase):
 
         buckets = []
         bucket_prefixes = [
-            '1' * i + '0' for i in range(7)
+            '1' * i + '0' for i in range(15)
         ]
         bucket_prefixes[-1] = bucket_prefixes[-1][:-1]
 
-        decay_constant = 1/5
+        decay_constant = 1/8
         buckets.append(1)
         for i in range(0, len(bucket_prefixes) - 1):
             buckets.append(
