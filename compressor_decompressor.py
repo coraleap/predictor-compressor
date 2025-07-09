@@ -2,9 +2,9 @@
 import numpy as np
 import unittest
 try:
-    import synthetic_data as synth
+    from synthetic_data import generate_synthetic_data
 except:
-    import .synthetic_data as synth
+    from .synthetic_data import generate_synthetic_data
 import math
 
 """
@@ -416,7 +416,7 @@ class TestStringMethods(unittest.TestCase):
         num_tokens = 100
         error_func_1 = lambda x: (x*q, x/q)
         power_law_distr_1 = lambda n: (n + 1) ** (exp)
-        data1, data2 = synth.generate_synthetic_data(
+        data1, data2 = generate_synthetic_data(
             num_tokens, iterations, power_law_distr_1, error_func_1
             , 0.1)
         
@@ -452,7 +452,7 @@ class TestStringMethods(unittest.TestCase):
         string_lengths = 17
         error_func_1 = lambda x: (x*q, x/q)
         power_law_distr_1 = lambda n: (n + 1) ** (-exp)
-        data1, data2 = synth.generate_synthetic_data(
+        data1, data2 = generate_synthetic_data(
             num_tokens, trials * trial_length, power_law_distr_1, error_func_1
             , 0.1)
         data1 = data1.reshape(trials, trial_length, num_tokens)
