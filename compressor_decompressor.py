@@ -1,7 +1,10 @@
 
 import numpy as np
 import unittest
-import synthetic_data as synth
+try:
+    import synthetic_data as synth
+except:
+    import .synthetic_data as synth
 import math
 
 """
