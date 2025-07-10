@@ -1,6 +1,10 @@
 
 import numpy as np
 import unittest
+
+unittest.TestLoader.sortTestMethodsUsing = None
+
+import random
 try:
     from synthetic_data import generate_synthetic_data
 except:
@@ -314,13 +318,40 @@ def create_package(pmf_generator_1: any, longform_strings: list[str] | dict[int,
         return detokenizer(tokens)
     return (compressor, decompressor)
 
+"""
+OTHER USEFUL FUNCTIONS
+"""
+
+def generate_token_tbl(numtoks: int, seed: any = None, strlen = -1) -> list[str]:
+    if strlen == -1:
+        strlen = math.ceil(math.log2(numtoks))
+    if numtoks > 2 ** strlen:
+        raise AssertionError('String length too small!')
+    
+    if seed is not None:
+        seed = random.randint(1, 10 ** 10)
+        print(f'Seed set to {seed:10d}.')
+    else:
+        print(f'Using seed {seed:10d}.')
+    
+    random.seed(seed)
+
+    odd1: int = 2 * random.randint(0, 2 ** (strlen - 1) - 1) + 1
+    odd2: int = 2 * random.randint(0, 2 ** (strlen - 1) - 1) + 1
+    odd3: int = 2 * random.randint(0, 2 ** (strlen - 1) - 1) + 1
+    tbl: list[str] = []
+
+    for i in range(numtoks):
+        j = (odd3 * i) % (2**strlen)
+        tbl.append(f"{(odd1 * (j ** 2 + j) + odd2 * (j >= 2**(strlen - 1))) % (2 ** strlen):{strlen}b}".replace(" ", "0"))
+    return tbl
+
 
 
 """
 UNITTEST CASES
 """
-
-class TestStringMethods(unittest.TestCase):
+class TestHelpers(unittest.TestCase):
     def test_identify_bucket_01(self):
         test_buckets_1 = [[1, 0.5], [0.5, 0.3], [0.3, 0.2], [0.2, 0.1], [0.1, 0]]
         self.assertTrue(
@@ -409,6 +440,15 @@ class TestStringMethods(unittest.TestCase):
             invert_digit('2', 3) == '0'
         )
 
+class TestTableGen(unittest.TestCase):
+    def test_token_gen_0(self):
+        tbl = generate_token_tbl(35, 'Hello World')
+        print(tbl)
+        tbl.sort()
+        for (i, j) in zip(tbl, tbl[1:]):
+            self.assertFalse(i == j)
+
+class TestCompression(unittest.TestCase):
     def test_single_token_01(self):
         exp = 0.5
         q = 0.99
@@ -552,6 +592,8 @@ class TestStringMethods(unittest.TestCase):
             self.assertEqual(inp, output)
 
         print(f'Performance (in bits): {total_length / (trial_length * trials)}')
+    
+
 
         
 
