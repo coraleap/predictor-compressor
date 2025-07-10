@@ -328,7 +328,7 @@ def generate_token_tbl(numtoks: int, seed: any = None, strlen = -1) -> list[str]
     if numtoks > 2 ** strlen:
         raise AssertionError('String length too small!')
     
-    if seed is not None:
+    if seed is None:
         seed = random.randint(1, 10 ** 10)
         print(f'Seed set to {seed:10d}.')
     else:
